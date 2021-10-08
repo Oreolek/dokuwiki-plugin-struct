@@ -46,7 +46,7 @@ class Page extends AbstractMultiBaseType
         if (is_a($R, 'renderer_plugin_dw2pdf')) {
           $contents = rawWiki($id);
           $lines = substr_count($contents, "\n")+1;
-          if ($lines > 1) {
+          if ($lines > 2) {
             $R->internallink(":$id", $title);
           } else {
             $R->unformatted($title);
