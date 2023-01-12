@@ -11,9 +11,7 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class SearchCloud extends SearchConfig
 {
-
     protected $limit = '';
-
 
     /**
      * Transform the set search parameters into a statement
@@ -37,7 +35,11 @@ class SearchCloud extends SearchConfig
         $subOr = $subAnd->whereSubOr();
         $subOr->whereAnd("GETACCESSLEVEL($datatable.pid) > 0");
         $subOr->whereAnd("PAGEEXISTS($datatable.pid) = 1");
-        $subOr->whereAnd('ASSIGNED != 0');
+        $subOr->whereSubOr()
+            ->whereAnd('ASSIGNED == 1')
+            ->whereSubOr()
+                ->whereAnd("$datatable.rid > 0")
+                ->whereAnd("ASSIGNED IS NULL");
 
         // add conditional schema assignment check
         $QB->addLeftJoin(

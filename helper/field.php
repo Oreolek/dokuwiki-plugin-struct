@@ -16,7 +16,6 @@ use dokuwiki\plugin\struct\types\Page;
  */
 class helper_plugin_struct_field extends helper_plugin_bureaucracy_field
 {
-
     /** @var  Column */
     public $column;
 
@@ -49,7 +48,7 @@ class helper_plugin_struct_field extends helper_plugin_bureaucracy_field
     {
         if (!$this->column) {
             $value = '';
-        //don't validate placeholders here
+            //don't validate placeholders here
         } elseif ($this->replace($value) == $value) {
             $validator = new ValueValidator();
             $this->error = !$validator->validateValue($this->column, $value);
@@ -110,14 +109,14 @@ class helper_plugin_struct_field extends helper_plugin_bureaucracy_field
      */
     protected function createValue()
     {
-        $preparedValue = $this->opt['value'];
+        $preparedValue = $this->opt['value'] ?? '';
 
         // page fields might need to be JSON encoded depending on usetitles config
         if (
             $this->column->getType() instanceof Page
             && $this->column->getType()->getConfig()['usetitles']
         ) {
-            $preparedValue = json_encode([$this->opt['value'], null]);
+            $preparedValue = json_encode([$preparedValue, null]);
         }
 
         $value = new Value($this->column, $preparedValue);
@@ -144,7 +143,7 @@ class helper_plugin_struct_field extends helper_plugin_bureaucracy_field
         $class = $hint ? 'hashint' : '';
         $lclass = $this->error ? 'bureaucracy_error' : '';
         $colname = $field->getColumn()->getFullQualifiedLabel();
-        $required = $this->opt['optional'] ? '' : ' <sup>*</sup>';
+        $required = !empty($this->opt['optional']) ? '' : ' <sup>*</sup>';
 
         $id = uniqid('struct__', true);
         $input = $field->getValueEditor($name, $id);
@@ -162,9 +161,9 @@ class helper_plugin_struct_field extends helper_plugin_bureaucracy_field
     /**
      * Tries to find the correct column and schema
      *
-     * @throws StructException
      * @param string $colname
      * @return \dokuwiki\plugin\struct\meta\Column
+     * @throws StructException
      */
     protected function findColumn($colname)
     {

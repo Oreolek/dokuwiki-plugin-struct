@@ -1,21 +1,25 @@
 <?php
+
 namespace dokuwiki\plugin\struct\test;
 
 use dokuwiki\plugin\struct\meta\Schema;
+use dokuwiki\plugin\struct\meta\StructException;
 
 /**
  * @group plugin_struct
  * @group plugins
  *
  */
-class schema_struct_test extends StructTest {
+class schema_struct_test extends StructTest
+{
 
     /**
-     * Testdata for @see schema_struct_test::test_cleanTableName
+     * Testdata for @return array
+     * @see schema_struct_test::test_cleanTableName
      *
-     * @return array
      */
-    public static function cleanTableName_testdata() {
+    public static function cleanTableName_testdata()
+    {
         return array(
             array(
                 'abc',
@@ -56,20 +60,21 @@ class schema_struct_test extends StructTest {
      * @param string $input_name
      * @param string $expected_cleaned_name
      */
-    public function test_cleanTableName($input_name, $expected_cleaned_name) {
+    public function test_cleanTableName($input_name, $expected_cleaned_name)
+    {
         $actual_cleaned_name = Schema::cleanTableName($input_name);
         $this->assertSame($expected_cleaned_name, $actual_cleaned_name, $input_name);
     }
 
-    /**
-     * @expectedException \dokuwiki\plugin\struct\meta\StructException
-     */
-    public function test_deletefail() {
+    public function test_deletefail()
+    {
+        $this->expectException(StructException::class);
         $schema = new Schema('foo');
         $schema->delete();
     }
 
-    public function test_deleteok() {
+    public function test_deleteok()
+    {
         $this->loadSchemaJSON('schema1');
 
         $schema = new Schema('schema1');

@@ -5,9 +5,9 @@ namespace dokuwiki\plugin\struct\meta;
 use dokuwiki\plugin\struct\types\Decimal;
 
 /**
- * Like a Page Column but for Lookups using a decimal type
+ * Published Column
  */
-class RowColumn extends PageColumn
+class PublishedColumn extends PageColumn
 {
     /** @noinspection PhpMissingParentConstructorInspection
      * @param int $sort
@@ -16,16 +16,16 @@ class RowColumn extends PageColumn
      */
     public function __construct($sort, Decimal $type, $table)
     {
-        if ($type->isMulti()) throw new StructException('RowColumns can not be multi value types!');
+        if ($type->isMulti()) throw new StructException('PublishedColumns can not be multi value types!');
         Column::__construct($sort, $type, 0, true, $table);
     }
 
     /**
-     * @return string always '%rowid%'
+     * @return string
      */
     public function getLabel()
     {
-        return '%rowid%';
+        return '%published%';
     }
 
     /**
@@ -34,7 +34,7 @@ class RowColumn extends PageColumn
      */
     public function getColName($enforceSingleColumn = true)
     {
-        return 'rid';
+        return 'published';
     }
 
     /**
@@ -44,6 +44,6 @@ class RowColumn extends PageColumn
     {
         /** @var \helper_plugin_struct_config $helper */
         $helper = plugin_load('helper', 'struct_config');
-        return $helper->getLang('rowlabel');
+        return $helper->getLang('publishedlabel');
     }
 }

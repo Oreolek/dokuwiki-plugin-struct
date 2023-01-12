@@ -2,6 +2,8 @@
 
 namespace dokuwiki\plugin\struct\meta;
 
+use dokuwiki\Utf8\PhpString;
+
 /**
  * Class SchemaBuilder
  *
@@ -17,7 +19,6 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class SchemaBuilder
 {
-
     /**
      * @var array The posted new data for the schema
      * @see Schema::AdminEditor()
@@ -42,7 +43,7 @@ class SchemaBuilder
     /** @var \helper_plugin_struct_db */
     protected $helper;
 
-    /** @var \helper_plugin_sqlite|null  */
+    /** @var \helper_plugin_sqlite|null */
     protected $sqlite;
 
     /** @var int the time for which this schema should be created - default to time() can be overriden for tests */
@@ -57,20 +58,22 @@ class SchemaBuilder
      */
     public function __construct($table, $data)
     {
+        global $INPUT;
+
         $this->table = $table;
         $this->data = $data;
         $this->oldschema = new Schema($table, 0);
 
         $this->helper = plugin_load('helper', 'struct_db');
         $this->sqlite = $this->helper->getDB();
-        $this->user = $_SERVER['REMOTE_USER'];
+        $this->user = $_SERVER['REMOTE_USER'] ?? '';
     }
 
     /**
      * Create the new schema
      *
      * @param int $time when to create this schema 0 for now
-     * @return bool|int the new schema id on success
+     * @return int the new schema id on success
      */
     public function build($time = 0)
     {
@@ -97,7 +100,7 @@ class SchemaBuilder
         }
         $this->sqlite->query('COMMIT TRANSACTION');
 
-        return $this->newschemaid;
+        return (int)$this->newschemaid;
     }
 
     /**
@@ -128,7 +131,7 @@ class SchemaBuilder
         $wantedlabel = trim($wantedlabel);
         $fixedlabel = $wantedlabel;
         $idx = 1;
-        while (isset($labels[utf8_strtolower($fixedlabel)])) {
+        while (isset($labels[PhpString::strtolower($fixedlabel)])) {
             $fixedlabel = $wantedlabel . $idx++;
         }
         // did we actually do a rename? apply it.
@@ -136,7 +139,7 @@ class SchemaBuilder
             msg(sprintf($this->helper->getLang('duplicate_label'), $wantedlabel, $fixedlabel), -1);
             $this->data['cols']['label'] = $fixedlabel;
         }
-        $labels[utf8_strtolower($fixedlabel)] = 1;
+        $labels[PhpString::strtolower($fixedlabel)] = 1;
         return $fixedlabel;
     }
 
@@ -147,7 +150,7 @@ class SchemaBuilder
     {
         if (!$this->time) $this->time = time();
 
-        $config = $this->data['config'] ?: '{}';
+        $config = $this->data['config'] ?? '{}';
 
         /** @noinspection SqlResolve */
         $sql = "INSERT INTO schemas (tbl, ts, user, config) VALUES (?, ?, ?, ?)";
@@ -166,18 +169,19 @@ class SchemaBuilder
     {
         foreach ($this->oldschema->getColumns() as $column) {
             $oldEntry = $column->getType()->getAsEntry();
-            $oldTid   = $column->getTid();
+            $oldTid = $column->getTid();
             $newEntry = $oldEntry;
-            $newTid   = $oldTid;
+            $newTid = $oldTid;
             $sort = $column->getSort();
             if (isset($this->data['cols'][$column->getColref()])) {
-                // todo I'm not too happy with this hardcoded here - we should probably have a list of fields at one place
+                // todo I'm not too happy with this hardcoded here -
+                // we should probably have a list of fields at one place
                 $newEntry['config'] = $this->data['cols'][$column->getColref()]['config'];
                 $newEntry['label'] = $this->data['cols'][$column->getColref()]['label'];
-                $newEntry['ismulti'] = $this->data['cols'][$column->getColref()]['ismulti'];
+                $newEntry['ismulti'] = $this->data['cols'][$column->getColref()]['ismulti'] ?? 0;
                 $newEntry['class'] = $this->data['cols'][$column->getColref()]['class'];
                 $sort = $this->data['cols'][$column->getColref()]['sort'];
-                $enabled = (bool) $this->data['cols'][$column->getColref()]['isenabled'];
+                $enabled = (bool)($this->data['cols'][$column->getColref()]['isenabled'] ?? 0);
 
                 // when the type definition has changed, we create a new one
                 if (array_diff_assoc($oldEntry, $newEntry)) {
@@ -213,12 +217,12 @@ class SchemaBuilder
      * Write the latest value from an entry in a data_ table to the corresponding multi_table
      *
      * @param string $table
-     * @param int    $colref
+     * @param int $colref
      */
     protected function migrateSingleToMulti($table, $colref)
     {
         /** @noinspection SqlResolve */
-        $sqlSelect = "SELECT pid, rev, col$colref AS value FROM data_$table WHERE latest = 1";
+        $sqlSelect = "SELECT pid, rev, published, col$colref AS value FROM data_$table WHERE latest = 1";
         $res = $this->sqlite->query($sqlSelect);
         $valueSet = $this->sqlite->res2arr($res);
         $this->sqlite->res_close($res);
@@ -228,15 +232,18 @@ class SchemaBuilder
             if (blank($values['value']) || trim($values['value']) == '') {
                 continue;
             }
-            $valueString[] = "(?, ?, ?, ?, ?)";
-            $arguments = array_merge($arguments, array($colref, $values['pid'], $values['rev'], 1, $values['value']));
+            $valueString[] = "(?, ?, ?, ?, ?, ?)";
+            $arguments = array_merge(
+                $arguments,
+                [$colref, $values['pid'], $values['rev'], $values['published'], 1, $values['value']]
+            );
         }
         if (empty($valueString)) {
             return;
         }
         $valueString = join(',', $valueString);
         /** @noinspection SqlResolve */
-        $sqlInsert = "INSERT OR REPLACE INTO multi_$table (colref, pid, rev, row, value) VALUES $valueString";
+        $sqlInsert = "INSERT OR REPLACE INTO multi_$table (colref, pid, rev, published, row, value) VALUES $valueString"; // phpcs:ignore
         $this->sqlite->query($sqlInsert, $arguments);
     }
 
@@ -256,9 +263,9 @@ class SchemaBuilder
 
             // todo this duplicates the hardcoding as in  the function above
             $newEntry = array();
-            $newEntry['config'] = $column['config'];
+            $newEntry['config'] = $column['config'] ?? '{}';
             $newEntry['label'] = $column['label'];
-            $newEntry['ismulti'] = $column['ismulti'];
+            $newEntry['ismulti'] = $column['ismulti'] ?? 0;
             $newEntry['class'] = $column['class'];
             $sort = $column['sort'];
 
@@ -300,8 +307,8 @@ class SchemaBuilder
      * Create a completely new data table with no columns yet also create the appropriate
      * multi value table for the schema
      *
-     * @todo how do we want to handle indexes?
      * @return bool
+     * @todo how do we want to handle indexes?
      */
     protected function newDataTable()
     {
@@ -313,9 +320,10 @@ class SchemaBuilder
                     rid INTEGER,
                     rev INTEGER,
                     latest BOOLEAN NOT NULL DEFAULT 0,
+                    published BOOLEAN DEFAULT NULL,
                     PRIMARY KEY(pid, rid, rev)
                 )";
-        $ok = $ok && (bool) $this->sqlite->query($sql);
+        $ok = $ok && (bool)$this->sqlite->query($sql);
 
         $tbl = 'multi_' . $this->table;
         $sql = "CREATE TABLE $tbl (
@@ -324,11 +332,12 @@ class SchemaBuilder
                     rid INTEGER,
                     rev INTEGER,
                     latest INTEGER NOT NULL DEFAULT 0,
+                    published BOOLEAN DEFAULT NULL,
                     row INTEGER NOT NULL,
                     value,
                     PRIMARY KEY(colref, pid, rid, rev, row)
                 );";
-        $ok = $ok && (bool) $this->sqlite->query($sql);
+        $ok = $ok && (bool)$this->sqlite->query($sql);
 
         return $ok;
     }
@@ -343,7 +352,7 @@ class SchemaBuilder
     {
         $tbl = 'data_' . $this->table;
         $sql = " ALTER TABLE $tbl ADD COLUMN col$index DEFAULT ''";
-        if (! $this->sqlite->query($sql)) {
+        if (!$this->sqlite->query($sql)) {
             return false;
         }
         return true;

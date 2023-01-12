@@ -2,17 +2,17 @@
 
 namespace dokuwiki\plugin\struct\test;
 
-use dokuwiki\plugin\bureaucracy\test\BureaucracyTest;
 use dokuwiki\plugin\struct\meta\AccessTable;
 
 /**
  * Tests for the integration with Bureaucracy plugin
  *
- * @group plugin_struct
+ * @group plugin_structb
  * @group plugins
  *
  */
-class Bureaucracy_struct_test extends StructTest {
+class Bureaucracy_struct_test extends StructTest
+{
 
     /** @var array alway enable the needed plugins */
     protected $pluginsEnabled = array('struct', 'sqlite', 'bureaucracy');
@@ -20,16 +20,21 @@ class Bureaucracy_struct_test extends StructTest {
     /** @var array of lookup data */
     protected $lookup = array();
 
-    public function setUp() : void {
+    public function setUp(): void
+    {
         parent::setUp();
+
+        if(!class_exists('\dokuwiki\plugin\bureaucracy\test\BureaucracyTest')) {
+            $this->markTestSkipped('bureaucracy plugin not available');
+        }
 
         $this->loadSchemaJSON('bureaucracy_lookup');
         $this->loadSchemaJSON('bureaucracy');
 
         //insert some data to lookup
-        for($i = 1; $i <= 10; ++$i) {
+        for ($i = 1; $i <= 10; ++$i) {
             $data = array(
-                'lookup_first'  => 'value first ' . $i,
+                'lookup_first' => 'value first ' . $i,
                 'lookup_second' => 'value second ' . $i
             );
 
@@ -39,7 +44,8 @@ class Bureaucracy_struct_test extends StructTest {
         }
     }
 
-    public function test_bureaucracy_lookup_replacement_empty() {
+    public function test_bureaucracy_lookup_replacement_empty()
+    {
         //page created by bureaucracy
         $id = 'bureaucracy_lookup_replacement_empty';
         //id of template page
@@ -51,15 +57,16 @@ class Bureaucracy_struct_test extends StructTest {
         //build form
         $fields = array();
 
+        /** @var \helper_plugin_struct_field $lookup_field */
         $lookup_field = plugin_load('helper', 'struct_field');
-        $lookup_field->opt['label'] = 'bureaucracy.lookup_select';
-        //empty lookup value
-        $lookup_field->opt['value'] = '';
-        //left pagename undefined
-        //$lookup_field->opt['pagename'];
 
-        //$args are ommited in struct_field
-        $lookup_field->initialize(array());
+        $lookup_field->opt['cmd'] = '';
+        $lookup_field->opt['label'] = 'bureaucracy.lookup_select';
+
+        $lookup_field->initialize([$lookup_field->opt['cmd'], $lookup_field->opt['label']]);
+
+        //empty lookup value
+        $lookup_field->opt['value'] = json_encode([]);
         $fields[] = $lookup_field;
 
         /** @var  \helper_plugin_bureaucracy_actiontemplate $actiontemplate */
@@ -71,7 +78,8 @@ class Bureaucracy_struct_test extends StructTest {
         $this->assertEquals('Value:', $page_content);
     }
 
-    public function test_bureaucracy_lookup_replacement() {
+    public function test_bureaucracy_lookup_replacement()
+    {
         //page created by bureaucracy
         $id = 'bureaucracy_lookup_replacement';
         //id of template page
@@ -88,13 +96,12 @@ class Bureaucracy_struct_test extends StructTest {
         $fields = array();
 
         $lookup_field = plugin_load('helper', 'struct_field');
+        $lookup_field->opt['cmd'] = '';
         $lookup_field->opt['label'] = 'bureaucracy.lookup_select';
-        $lookup_field->opt['value'] = json_encode(['', $lookup_rid]);
-        //left pagename undefined
-        //$lookup_field->opt['pagename'];
 
-        //$args are ommited in struct_field
-        $lookup_field->initialize(array());
+        $lookup_field->initialize([$lookup_field->opt['cmd'], $lookup_field->opt['label']]);
+        $lookup_field->opt['value'] = json_encode(['', $lookup_rid]);
+
         $fields[] = $lookup_field;
 
         /* @var \helper_plugin_bureaucracy_actiontemplate $actiontemplate */
@@ -106,7 +113,8 @@ class Bureaucracy_struct_test extends StructTest {
         $this->assertEquals('Value:' . $lookup_value, $page_content);
     }
 
-    public function test_bureaucracy_multi_field() {
+    public function test_bureaucracy_multi_field()
+    {
         $this->loadSchemaJSON('schema1');
 
         $formSyntax = [
@@ -116,23 +124,24 @@ class Bureaucracy_struct_test extends StructTest {
         $templateSyntax = "staticPrefix @@schema1.first@@ staticPostfix\nmulti: @@schema1.second@@ multipost";
         $values = ['foo', ['bar', 'baz']];
 
-        $bWrapper = new bureaucracyTestWrapper();
-        $actualWikitext = $bWrapper->send_form_action_template(
-            $formSyntax,
-            $templateSyntax,
-            $errors,
-            ...$values
+        $errors = [];
+        $bTest = new \dokuwiki\plugin\bureaucracy\test\BureaucracyTest();
+        $actualWikitext = $this->callInaccessibleMethod(
+            $bTest,
+            'send_form_action_template',
+            array_merge(
+                [
+                    $formSyntax,
+                    $templateSyntax,
+                    &$errors
+                ],
+                $values
+
+            )
         );
 
         $expectedSyntax = "staticPrefix foo staticPostfix\nmulti: bar, baz multipost";
         $this->assertEquals($expectedSyntax, $actualWikitext);
         $this->assertEmpty($errors);
-    }
-}
-
-
-class bureaucracyTestWrapper extends BureaucracyTest {
-    public function send_form_action_template($form_syntax, $template_syntax, &$validation_errors, ...$values) {
-        return parent::send_form_action_template($form_syntax, $template_syntax, $validation_errors, ...$values);
     }
 }

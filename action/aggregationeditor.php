@@ -9,8 +9,8 @@
 
 use dokuwiki\plugin\struct\meta\AccessTable;
 use dokuwiki\plugin\struct\meta\AccessTableGlobal;
-use dokuwiki\plugin\struct\meta\Column;
 use dokuwiki\plugin\struct\meta\AggregationEditorTable;
+use dokuwiki\plugin\struct\meta\Column;
 use dokuwiki\plugin\struct\meta\Schema;
 use dokuwiki\plugin\struct\meta\SearchConfig;
 use dokuwiki\plugin\struct\meta\StructException;
@@ -23,7 +23,6 @@ use dokuwiki\plugin\struct\meta\Value;
  */
 class action_plugin_struct_aggregationeditor extends DokuWiki_Action_Plugin
 {
-
     /** @var  Column */
     protected $column = null;
 
@@ -41,14 +40,27 @@ class action_plugin_struct_aggregationeditor extends DokuWiki_Action_Plugin
      */
     public function register(Doku_Event_Handler $controller)
     {
+        $controller->register_hook('DOKUWIKI_STARTED', 'AFTER', $this, 'addJsinfo');
         $controller->register_hook('AJAX_CALL_UNKNOWN', 'BEFORE', $this, 'handleAjax');
     }
 
     /**
+     * Add user's permissions to JSINFO
+     *
      * @param Doku_Event $event
-     * @param $param
      */
-    public function handleAjax(Doku_Event $event, $param)
+    public function addJsinfo(Doku_Event $event)
+    {
+        global $ID;
+        global $JSINFO;
+        $JSINFO['plugins']['struct']['isPageEditor'] = (bool)(auth_quickaclcheck($ID) >= AUTH_EDIT);
+    }
+
+
+    /**
+     * @param Doku_Event $event
+     */
+    public function handleAjax(Doku_Event $event)
     {
         $len = strlen('plugin_struct_aggregationeditor_');
         if (substr($event->data, 0, $len) != 'plugin_struct_aggregationeditor_') {
@@ -145,6 +157,7 @@ class action_plugin_struct_aggregationeditor extends DokuWiki_Action_Plugin
         if (!$schema->isEditable()) {
             return;
         } // no permissions, no editor
+        // separate check for serial data in JS
 
         echo '<div class="struct_entry_form">';
         echo '<fieldset>';

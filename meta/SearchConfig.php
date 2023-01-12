@@ -11,7 +11,6 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class SearchConfig extends Search
 {
-
     /** @var int default aggregation caching (depends on last struct save) */
     public static $CACHE_DEFAULT = 1;
     /** @var int caching depends on current user */
@@ -109,9 +108,10 @@ class SearchConfig extends Search
      */
     protected function applyFilterVars($filter)
     {
+        global $INPUT;
         global $INFO;
-        if (is_null($INFO)) {
-            $INFO = ['id' => null];
+        if (!isset($INFO['id'])) {
+            $INFO['id'] = null;
         }
 
         // apply inexpensive filters first
@@ -127,7 +127,7 @@ class SearchConfig extends Search
                 $INFO['id'],
                 getNS($INFO['id']),
                 noNS($INFO['id']),
-                isset($_SERVER['REMOTE_USER']) ? $_SERVER['REMOTE_USER'] : '',
+                $INPUT->server->str('REMOTE_USER'),
                 date('Y-m-d')
             ),
             $filter
@@ -161,7 +161,7 @@ class SearchConfig extends Search
             $label = $column->getLabel();
             $table = $column->getTable();
         } else {
-            list($table, $label) = explode('.', $key);
+            list($table, $label) = array_pad(explode('.', $key), 2, '');
         }
 
         // get the data from the current page

@@ -2,11 +2,10 @@
 
 namespace dokuwiki\plugin\struct\meta;
 
+use dokuwiki\plugin\struct\types\AutoSummary;
 use dokuwiki\plugin\struct\types\DateTime;
 use dokuwiki\plugin\struct\types\Decimal;
 use dokuwiki\plugin\struct\types\Page;
-use dokuwiki\plugin\struct\types\AutoSummary;
-use dokuwiki\plugin\struct\types\Text;
 use dokuwiki\plugin\struct\types\User;
 
 class Search
@@ -14,7 +13,7 @@ class Search
     /**
      * This separator will be used to concat multi values to flatten them in the result set
      */
-    const CONCAT_SEPARATOR = "\n!_-_-_-_-_!\n";
+    public const CONCAT_SEPARATOR = "\n!_-_-_-_-_!\n";
 
     /**
      * The list of known and allowed comparators
@@ -23,6 +22,9 @@ class Search
     public static $COMPARATORS = array(
         '<=', '>=', '=*', '=', '<', '>', '!=', '!~', '~', ' IN '
     );
+
+    /** @var \helper_plugin_struct_db */
+    protected $dbHelper;
 
     /** @var  \helper_plugin_sqlite */
     protected $sqlite;
@@ -62,9 +64,14 @@ class Search
      */
     public function __construct()
     {
-        /** @var \helper_plugin_struct_db $plugin */
-        $plugin = plugin_load('helper', 'struct_db');
-        $this->sqlite = $plugin->getDB();
+        /** @var  $dbHelper */
+        $this->dbHelper = plugin_load('helper', 'struct_db');
+        $this->sqlite = $this->dbHelper->getDB();
+    }
+
+    public function getDb()
+    {
+        return $this->sqlite;
     }
 
     /**
@@ -157,8 +164,10 @@ class Search
             $comp = '!=';
         }
 
-        if (!in_array($comp, self::$COMPARATORS)) throw new StructException("Bad comperator. Use " . join(',', self::$COMPARATORS));
-        if ($op != 'OR' && $op != 'AND') throw new StructException('Bad filter type . Only AND or OR allowed');
+        if (!in_array($comp, self::$COMPARATORS))
+            throw new StructException("Bad comperator. Use " . join(',', self::$COMPARATORS));
+        if ($op != 'OR' && $op != 'AND')
+            throw new StructException('Bad filter type . Only AND or OR allowed');
 
         $col = $this->findColumn($colname);
         if (!$col) return; // ignore missing columns, filter might have been for different schema
@@ -305,9 +314,9 @@ class Search
     /**
      * Return the number of results (regardless of limit and offset settings)
      *
-     * Use this to implement paging. Important: this may only be called after running @see execute()
+     * Use this to implement paging. Important: this may only be called after running @return int
+     * @see execute()
      *
-     * @return int
      */
     public function getCount()
     {
@@ -318,39 +327,42 @@ class Search
     /**
      * Returns the PID associated with each result row
      *
-     * Important: this may only be called after running @see execute()
+     * Important: this may only be called after running @return \string[]
+     * @see execute()
      *
-     * @return \string[]
      */
     public function getPids()
     {
-        if ($this->result_pids === null) throw new StructException('PIDs are only accessible after executing the search');
+        if ($this->result_pids === null)
+            throw new StructException('PIDs are only accessible after executing the search');
         return $this->result_pids;
     }
 
     /**
      * Returns the rid associated with each result row
      *
-     * Important: this may only be called after running @see execute()
+     * Important: this may only be called after running @return array
+     * @see execute()
      *
-     * @return array
      */
     public function getRids()
     {
-        if ($this->result_rids === null) throw new StructException('rids are only accessible after executing the search');
+        if ($this->result_rids === null)
+            throw new StructException('rids are only accessible after executing the search');
         return $this->result_rids;
     }
 
     /**
      * Returns the rid associated with each result row
      *
-     * Important: this may only be called after running @see execute()
+     * Important: this may only be called after running @return array
+     * @see execute()
      *
-     * @return array
      */
     public function getRevs()
     {
-        if ($this->result_revs === null) throw new StructException('revs are only accessible after executing the search');
+        if ($this->result_revs === null)
+            throw new StructException('revs are only accessible after executing the search');
         return $this->result_revs;
     }
 
@@ -360,9 +372,9 @@ class Search
      * The result is a two dimensional array of Value()s.
      *
      * This will always query for the full result (not using offset and limit) and then
-     * return the wanted range, setting the count (@see getCount) to the whole result number
+     * return the wanted range, setting the count (@return Value[][]
+     * @see getCount) to the whole result number
      *
-     * @return Value[][]
      */
     public function execute()
     {
@@ -463,7 +475,8 @@ class Search
 
                 $first_table = $datatable;
             }
-            $QB->filters()->whereAnd("$datatable.latest = 1");
+            // phpcs:ignore
+            $QB->filters()->whereAnd("( (IS_PUBLISHER($datatable.pid) AND $datatable.latest = 1) OR (IS_PUBLISHER($datatable.pid) !=1 AND $datatable.published = 1) )");
         }
 
         // columns to select, handling multis
@@ -580,7 +593,7 @@ class Search
             $table = $schema_list[0];
         }
 
-        $schema = $this->schemas[$table];
+        $schema = $this->schemas[$table] ?? null;
         if (!$schema) return false;
         $this->columns = array_merge($this->columns, $schema->getColumns(false));
         return true;
@@ -599,7 +612,7 @@ class Search
         if (!$this->schemas) throw new StructException('noschemas');
 
         // resolve the alias or table name
-        @list($table, $colname) = explode('.', $colname, 2);
+        @list($table, $colname) = array_pad(explode('.', $colname, 2), 2, '');
         if (!$colname) {
             $colname = $table;
             $table = null;
@@ -643,6 +656,9 @@ class Search
         if ($colname == '%rowid%') {
             return new RowColumn(0, new Decimal(), $schema_list[0]);
         }
+        if ($colname == '%published%') {
+            return new PublishedColumn(0, new Decimal(), $schema_list[0]);
+        }
 
         list($colname, $table) = $this->resolveColumn($colname);
 
@@ -653,7 +669,7 @@ class Search
          */
         if ($table !== null && isset($this->schemas[$table])) {
             $schemas = array($table => $this->schemas[$table]);
-        } else if ($table === null || !$strict) {
+        } elseif ($table === null || !$strict) {
             $schemas = $this->schemas;
         } else {
             return false;

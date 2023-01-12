@@ -1,15 +1,19 @@
 <?php
 
 namespace dokuwiki\plugin\struct\test;
+
+use dokuwiki\plugin\struct\meta\StructException;
 use dokuwiki\plugin\struct\test\mock\QueryBuilder;
 
 /**
  * @group plugin_struct
  * @group plugins
  */
-class QueryBuilderOther_struct_test extends StructTest {
+class QueryBuilderOther_struct_test extends StructTest
+{
 
-    public function test_order_by() {
+    public function test_order_by()
+    {
         $qb = new QueryBuilder();
 
         $qb->addTable('first', 'T1');
@@ -25,7 +29,8 @@ class QueryBuilderOther_struct_test extends StructTest {
 
     }
 
-    public function test_group_by() {
+    public function test_group_by()
+    {
         $qb = new QueryBuilder();
 
         $qb->addTable('first', 'T1');
@@ -41,10 +46,9 @@ class QueryBuilderOther_struct_test extends StructTest {
         $this->assertEquals(array(), $actual_opts);
     }
 
-    /**
-     * @expectedException \dokuwiki\plugin\struct\meta\StructException
-     */
-    public function test_groupby_missing_alias() {
+    public function test_groupby_missing_alias()
+    {
+        $this->expectException(StructException::class);
         $qb = new QueryBuilder();
 
         $qb->addTable('first', 'T1');

@@ -2,6 +2,7 @@
 
 namespace dokuwiki\plugin\struct\test;
 
+use dokuwiki\plugin\struct\meta\ValidationException;
 use dokuwiki\plugin\struct\types\Url;
 
 /**
@@ -10,14 +11,16 @@ use dokuwiki\plugin\struct\types\Url;
  * @group plugin_struct
  * @group plugins
  */
-class Type_Url_struct_test extends StructTest {
+class Type_Url_struct_test extends StructTest
+{
 
     /**
      * Provides failing validation data
      *
      * @return array
      */
-    public function validateFailProvider() {
+    public function validateFailProvider()
+    {
         return array(
             array('foo', '', '', ''),
             array('http', '', '', ''),
@@ -35,7 +38,8 @@ class Type_Url_struct_test extends StructTest {
      *
      * @return array
      */
-    public function validateSuccessProvider() {
+    public function validateSuccessProvider()
+    {
         return array(
             array('http://www.example.com', '', '', ''),
             array('www.example.com', 'http://', '', ''),
@@ -55,7 +59,8 @@ class Type_Url_struct_test extends StructTest {
      *
      * @return array
      */
-    public function generateAutoTitleProvider() {
+    public function generateAutoTitleProvider()
+    {
         return [
             ['https://foobar.com', 'foobar.com'],
             ['https://foobar.com/', 'foobar.com'],
@@ -67,10 +72,11 @@ class Type_Url_struct_test extends StructTest {
     }
 
     /**
-     * @expectedException \dokuwiki\plugin\struct\meta\ValidationException
      * @dataProvider validateFailProvider
      */
-    public function test_validate_fail($value, $prefix, $postfix, $autoscheme) {
+    public function test_validate_fail($value, $prefix, $postfix, $autoscheme)
+    {
+        $this->expectException(ValidationException::class);
         $url = new Url(array('prefix' => $prefix, 'postfix' => $postfix, 'autoscheme' => $autoscheme));
         $url->validate($value);
     }
@@ -78,7 +84,8 @@ class Type_Url_struct_test extends StructTest {
     /**
      * @dataProvider validateSuccessProvider
      */
-    public function test_validate_success($value, $prefix, $postfix, $autoscheme) {
+    public function test_validate_success($value, $prefix, $postfix, $autoscheme)
+    {
         $url = new Url(array('prefix' => $prefix, 'postfix' => $postfix, 'autoscheme' => $autoscheme));
         $url->validate($value);
         $this->assertTrue(true); // we simply check that no exceptions are thrown
@@ -87,7 +94,8 @@ class Type_Url_struct_test extends StructTest {
     /**
      * @dataProvider generateAutoTitleProvider
      */
-    public function test_generateAutoTitle($input, $title) {
+    public function test_generateAutoTitle($input, $title)
+    {
         $url = new Url(['autoshorten' => true]);
         $result = $this->callInaccessibleMethod($url, 'generateTitle', [$input]);
         $this->assertSame($title, $result);
@@ -97,7 +105,8 @@ class Type_Url_struct_test extends StructTest {
         $this->assertSame($input, $result);
     }
 
-    public function test_generateFixedTitle() {
+    public function test_generateFixedTitle()
+    {
         $input = 'https://www.foobar.com/long';
         $title = 'oink';
 

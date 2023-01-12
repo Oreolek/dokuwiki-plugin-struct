@@ -3,8 +3,7 @@
 namespace dokuwiki\plugin\struct\meta;
 
 use dokuwiki\plugin\struct\types\AbstractBaseType;
-
-if (!defined('JSON_PRETTY_PRINT')) define('JSON_PRETTY_PRINT', 0); // PHP 5.3 compatibility
+use dokuwiki\Utf8\PhpString;
 
 /**
  * Class Schema
@@ -32,11 +31,6 @@ class Schema
     /** @var string name of the associated table */
     protected $table = '';
 
-    /**
-     * @var string the current checksum of this schema
-     */
-    protected $chksum = '';
-
     /** @var Column[] all the colums */
     protected $columns = array();
 
@@ -60,7 +54,7 @@ class Schema
      */
     public function __construct($table, $ts = 0)
     {
-        $baseconfig = array('allowed editors' => '');
+        $baseconfig = array('allowed editors' => '', 'internal' => false);
 
         /** @var \helper_plugin_struct_db $helper */
         $helper = plugin_load('helper', 'struct_db');
@@ -95,7 +89,6 @@ class Schema
             $result = array_shift($schema);
             $this->id = $result['id'];
             $this->user = $result['user'];
-            $this->chksum = isset($result['chksum']) ? $result['chksum'] : '';
             $this->ts = $result['ts'];
             $config = json_decode($result['config'], true);
         }
@@ -235,7 +228,6 @@ class Schema
 
         // a deleted schema should not be used anymore, but let's make sure it's somewhat sane anyway
         $this->id = 0;
-        $this->chksum = '';
         $this->columns = array();
         $this->maxsort = 0;
         $this->ts = 0;
@@ -255,14 +247,6 @@ class Schema
         $this->sqlite->query($sql, 'multi_' . $this->table);
         $this->sqlite->query('COMMIT TRANSACTION');
         $this->sqlite->query('VACUUM');
-    }
-
-    /**
-     * @return string
-     */
-    public function getChksum()
-    {
-        return $this->chksum;
     }
 
     /**
@@ -315,10 +299,20 @@ class Schema
     public function isEditable()
     {
         global $USERINFO;
+        global $INPUT;
         if ($this->config['allowed editors'] === '') return true;
-        if (blank($_SERVER['REMOTE_USER'])) return false;
+        if ($INPUT->server->str('REMOTE_USER') === '') return false;
         if (auth_isadmin()) return true;
-        return auth_isMember($this->config['allowed editors'], $_SERVER['REMOTE_USER'], $USERINFO['grps']);
+        return auth_isMember($this->config['allowed editors'], $INPUT->server->str('REMOTE_USER'), $USERINFO['grps']);
+    }
+
+    /**
+     *
+     * @return bool
+     */
+    public function isInternal()
+    {
+        return (bool) $this->config['internal'];
     }
 
     /**
@@ -352,7 +346,7 @@ class Schema
     public function findColumn($name)
     {
         foreach ($this->columns as $col) {
-            if ($col->isEnabled() && utf8_strtolower($col->getLabel()) == utf8_strtolower($name)) {
+            if ($col->isEnabled() &&  PhpString::strtolower($col->getLabel()) == PhpString::strtolower($name)) {
                 return $col;
             }
         }

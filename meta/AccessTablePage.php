@@ -11,8 +11,7 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class AccessTablePage extends AccessTable
 {
-
-    const DEFAULT_PAGE_RID = 0;
+    public const DEFAULT_PAGE_RID = 0;
 
     public function __construct($schema, $pid, $ts = 0, $rid = 0)
     {
@@ -61,7 +60,7 @@ class AccessTablePage extends AccessTable
         $ret = $this->sqlite->res2single($res);
         $this->sqlite->res_close($res);
         // make sure we don't cast empty result to 0 (serial data has rev = 0)
-        if ($ret !== false) $ret = (int) $ret;
+        if ($ret !== false) $ret = (int)$ret;
         return $ret;
     }
 
@@ -94,7 +93,9 @@ class AccessTablePage extends AccessTable
     }
 
     /**
-     * @inheritDoc
+     * Names of non-input columns to be inserted into SQL query.
+     * Field 'published' is skipped because only plugins use it and
+     * we don't want to interfere with the default NULL value
      */
     protected function getSingleNoninputCols()
     {

@@ -1,20 +1,23 @@
 <?php
+
 namespace dokuwiki\plugin\struct\test;
 
-use dokuwiki\plugin\struct\meta\SchemaBuilder;
 use dokuwiki\plugin\struct\meta\Schema;
+use dokuwiki\plugin\struct\meta\SchemaBuilder;
 
 /**
  * @group plugin_struct
  * @group plugins
  *
  */
-class schemaBuilder_struct_test extends StructTest {
+class schemaBuilder_struct_test extends StructTest
+{
 
     /** @var \helper_plugin_sqlite $sqlite */
     protected $sqlite;
 
-    public function setUp() : void {
+    public function setUp(): void
+    {
         parent::setUp();
 
         /** @var \helper_plugin_struct_db $sqlite */
@@ -25,7 +28,8 @@ class schemaBuilder_struct_test extends StructTest {
     /**
      *
      */
-    public function test_build_new() {
+    public function test_build_new()
+    {
 
         // arrange
         $testdata = array();
@@ -57,7 +61,8 @@ class schemaBuilder_struct_test extends StructTest {
                     pid TEXT DEFAULT '',
                     rid INTEGER,
                     rev INTEGER,
-                    latest BOOLEAN NOT NULL DEFAULT 0, col1 DEFAULT '', col2 DEFAULT '',
+                    latest BOOLEAN NOT NULL DEFAULT 0,
+                    published BOOLEAN DEFAULT NULL, col1 DEFAULT '', col2 DEFAULT '',
                     PRIMARY KEY(pid, rid, rev)
                 )";
 
@@ -105,17 +110,17 @@ class schemaBuilder_struct_test extends StructTest {
         $actual_schema = $this->sqlite->res2row($res);
         $this->sqlite->res_close($res);
 
-        $this->assertSame('1', $result);
+        $this->assertSame(1, $result);
         $this->assertEquals($expected_tableSQL, $tableSQL);
         $this->assertEquals($expected_types, $actual_types);
         $this->assertEquals($expected_cols, $actual_cols);
-        $this->assertEquals('1', $actual_schema['id']);
+        $this->assertEquals(1, $actual_schema['id']);
         $this->assertEquals($testname, $actual_schema['tbl']);
-        $this->assertEquals('', $actual_schema['chksum']);
-        $this->assertTrue((int) $actual_schema['ts'] > 0, 'timestamp should be larger than 0');
+        $this->assertTrue((int)$actual_schema['ts'] > 0, 'timestamp should be larger than 0');
     }
 
-    public function test_build_update() {
+    public function test_build_update()
+    {
 
         // arrange
         $initialdata = array();
@@ -131,7 +136,7 @@ class schemaBuilder_struct_test extends StructTest {
 
         $builder = new SchemaBuilder($testname, $initialdata);
         $result = $builder->build();
-        $this->assertSame($result, '1', 'Prerequiste setup  in order to have basis which to change during act');
+        $this->assertSame(1, $result, 'Prerequiste setup  in order to have basis which to change during act');
 
         $updatedata = array();
         $updatedata['id'] = "1";
@@ -167,8 +172,8 @@ class schemaBuilder_struct_test extends StructTest {
         );
 
         // assert
-        $this->assertSame($result, '2');
-        $this->assertEquals($actual_types, $expected_types);
+        $this->assertSame(2, $result);
+        $this->assertEquals($expected_types, $actual_types);
 
     }
 }

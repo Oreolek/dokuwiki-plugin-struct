@@ -20,7 +20,6 @@ use dokuwiki\plugin\struct\meta\StructException;
 
 class admin_plugin_struct_schemas extends DokuWiki_Admin_Plugin
 {
-
     /**
      * @return int sort number in admin menu
      */
@@ -87,7 +86,7 @@ class admin_plugin_struct_schemas extends DokuWiki_Admin_Plugin
                     $datatype = $INPUT->str('importtype');
                     if ($datatype === CSVExporter::DATATYPE_PAGE) {
                         $csvImporter = new CSVPageImporter($table, $_FILES['csvfile']['tmp_name'], $datatype);
-                    } else if ($datatype === CSVExporter::DATATYPE_SERIAL) {
+                    } elseif ($datatype === CSVExporter::DATATYPE_SERIAL) {
                         $csvImporter = new CSVSerialImporter($table, $_FILES['csvfile']['tmp_name'], $datatype);
                     } else {
                         $csvImporter = new CSVImporter($table, $_FILES['csvfile']['tmp_name'], $datatype);
@@ -156,6 +155,11 @@ class admin_plugin_struct_schemas extends DokuWiki_Admin_Plugin
 
             echo $this->locale_xhtml('editor_edit');
             echo '<h2>' . sprintf($this->getLang('edithl'), hsc($table)) . '</h2>';
+
+            if ($schema->getConfig()['internal']) {
+                echo $this->getLang('internal');
+                return;
+            }
 
             echo '<ul class="tabs" id="plugin__struct_tabs">';
             /** @noinspection HtmlUnknownAnchorTarget */
@@ -237,7 +241,10 @@ class admin_plugin_struct_schemas extends DokuWiki_Admin_Plugin
         $form->addElement(new \dokuwiki\Form\InputElement('file', 'csvfile'))->attr('accept', '.csv');
         $form->addButton('importcsv', $this->getLang('btn_import'));
         $form->addCheckbox('createPage', 'Create missing pages')->addClass('block edit');
-        $form->addHTML('<p><a href="https://www.dokuwiki.org/plugin:struct:csvimport">' . $this->getLang('admin_csvhelp') . '</a></p>');
+        $form->addHTML(
+            '<p><a href="https://www.dokuwiki.org/plugin:struct:csvimport">' .
+            $this->getLang('admin_csvhelp') . '</a></p>'
+        );
         $form->addFieldsetClose();
 
         return $form->toHTML();
@@ -303,30 +310,32 @@ class admin_plugin_struct_schemas extends DokuWiki_Admin_Plugin
         $link = wl(
             $ID,
             array(
-                   'do' => 'admin',
-                   'page' => 'struct_assignments'
-               )
+                'do' => 'admin',
+                'page' => 'struct_assignments'
+            )
         );
         $toc[] = html_mktocitem($link, $this->getLang('menu_assignments'), 0, '');
         $slink = wl(
             $ID,
             array(
-                   'do' => 'admin',
-                   'page' => 'struct_schemas'
-               )
+                'do' => 'admin',
+                'page' => 'struct_schemas'
+            )
         );
         $toc[] = html_mktocitem($slink, $this->getLang('menu'), 0, '');
 
-        $tables = Schema::getAll();
-        if ($tables) {
-            foreach ($tables as $table) {
+        $schemas = helper_plugin_struct::getSchema();
+        if ($schemas) {
+            foreach ($schemas as $schema) {
+                if ($schema->isInternal()) continue;
+                $table = $schema->getTable();
                 $link = wl(
                     $ID,
                     array(
-                           'do' => 'admin',
-                           'page' => 'struct_schemas',
-                           'table' => $table
-                       )
+                        'do' => 'admin',
+                        'page' => 'struct_schemas',
+                        'table' => $table
+                    )
                 );
 
                 $toc[] = html_mktocitem($link, hsc($table), 1, '');
