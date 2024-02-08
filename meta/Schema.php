@@ -2,6 +2,7 @@
 
 namespace dokuwiki\plugin\struct\meta;
 
+use dokuwiki\plugin\sqlite\SQLiteDB;
 use dokuwiki\plugin\struct\types\AbstractBaseType;
 use dokuwiki\Utf8\PhpString;
 
@@ -19,7 +20,7 @@ class Schema
 {
     use TranslationUtilities;
 
-    /** @var \helper_plugin_sqlite|null */
+    /** @var SQLiteDB|null */
     protected $sqlite;
 
     /** @var int The ID of this schema */
@@ -32,7 +33,7 @@ class Schema
     protected $table = '';
 
     /** @var Column[] all the colums */
-    protected $columns = array();
+    protected $columns = [];
 
     /** @var int */
     protected $maxsort = 0;
@@ -44,7 +45,7 @@ class Schema
     protected $structversion = '?';
 
     /** @var array config array with label translations */
-    protected $config = array();
+    protected $config = [];
 
     /**
      * Schema constructor
@@ -54,7 +55,7 @@ class Schema
      */
     public function __construct($table, $ts = 0)
     {
-        $baseconfig = array('allowed editors' => '', 'internal' => false);
+        $baseconfig = ['allowed editors' => '', 'internal' => false];
 
         /** @var \helper_plugin_struct_db $helper */
         $helper = plugin_load('helper', 'struct_db');
@@ -63,6 +64,7 @@ class Schema
         $this->sqlite = $helper->getDB();
         $table = self::cleanTableName($table);
         $this->table = $table;
+
         $this->ts = $ts;
 
         // load info about the schema itself
@@ -73,28 +75,27 @@ class Schema
                        AND ts <= ?
                   ORDER BY ts DESC
                      LIMIT 1";
-            $opt = array($table, $ts);
+            $opt = [$table, $ts];
         } else {
             $sql = "SELECT *
                       FROM schemas
                      WHERE tbl = ?
                   ORDER BY ts DESC
                      LIMIT 1";
-            $opt = array($table);
+            $opt = [$table];
         }
-        $res = $this->sqlite->query($sql, $opt);
-        $config = array();
-        if ($this->sqlite->res2count($res)) {
-            $schema = $this->sqlite->res2arr($res);
+        $schema = $this->sqlite->queryAll($sql, $opt);
+        $config = [];
+
+        if (!empty($schema)) {
             $result = array_shift($schema);
             $this->id = $result['id'];
             $this->user = $result['user'];
             $this->ts = $result['ts'];
-            $config = json_decode($result['config'], true);
+            $config = json_decode($result['config'], true, 512, JSON_THROW_ON_ERROR);
         }
-        $this->sqlite->res_close($res);
         $this->config = array_merge($baseconfig, $config);
-        $this->initTransConfig(array('label'));
+        $this->initTransConfig(['label']);
         if (!$this->id) return;
 
         // load existing columns
@@ -104,9 +105,7 @@ class Schema
                  WHERE SC.sid = ?
                    AND SC.tid = T.id
               ORDER BY SC.sort";
-        $res = $this->sqlite->query($sql, $this->id);
-        $rows = $this->sqlite->res2arr($res);
-        $this->sqlite->res_close($res);
+        $rows = $this->sqlite->queryAll($sql, [$this->id]);
 
         $typeclasses = Column::allTypes();
         foreach ($rows as $row) {
@@ -121,7 +120,7 @@ class Schema
                 $class = 'dokuwiki\\plugin\\struct\\types\\Text';
             }
 
-            $config = json_decode($row['config'], true);
+            $config = json_decode($row['config'], true, 512, JSON_THROW_ON_ERROR);
             /** @var AbstractBaseType $type */
             $type = new $class($config, $row['label'], $row['ismulti'], $row['tid']);
             $column = new Column(
@@ -143,7 +142,7 @@ class Schema
      */
     public function __toString()
     {
-        return __CLASS__ . ' ' . $this->table . ' (' . $this->id . ') ';
+        return self::class . ' ' . $this->table . ' (' . $this->id . ') ';
     }
 
     /**
@@ -172,13 +171,11 @@ class Schema
         /** @var \helper_plugin_struct_db $helper */
         $helper = plugin_load('helper', 'struct_db');
         $db = $helper->getDB(false);
-        if (!$db) return array();
+        if (!$db instanceof SQLiteDB) return [];
 
-        $res = $db->query("SELECT DISTINCT tbl FROM schemas ORDER BY tbl");
-        $tables = $db->res2arr($res);
-        $db->res_close($res);
+        $tables = $db->queryAll("SELECT DISTINCT tbl FROM schemas ORDER BY tbl");
 
-        $result = array();
+        $result = [];
         foreach ($tables as $row) {
             $result[] = $row['tbl'];
         }
@@ -196,15 +193,15 @@ class Schema
 
         $this->sqlite->query('BEGIN TRANSACTION');
 
-        $sql = "DROP TABLE ?";
-        $this->sqlite->query($sql, 'data_' . $this->table);
-        $this->sqlite->query($sql, 'multi_' . $this->table);
+        $sql = "DROP TABLE ";
+        $this->sqlite->query($sql . 'data_' . $this->table);
+        $this->sqlite->query($sql . 'multi_' . $this->table);
 
-        $sql = "DELETE FROM schema_assignments WHERE tbl = ?";
-        $this->sqlite->query($sql, $this->table);
+        $sql = "DELETE FROM schema_assignments WHERE tbl = '$this->table'";
+        $this->sqlite->query($sql);
 
-        $sql = "DELETE FROM schema_assignments_patterns WHERE tbl = ?";
-        $this->sqlite->query($sql, $this->table);
+        $sql = "DELETE FROM schema_assignments_patterns WHERE tbl = '$this->table'";
+        $this->sqlite->query($sql);
 
         $sql = "SELECT T.id
                   FROM types T, schema_cols SC, schemas S
@@ -212,23 +209,25 @@ class Schema
                    AND SC.sid = S.id
                    AND S.tbl = ?";
         $sql = "DELETE FROM types WHERE id IN ($sql)";
-        $this->sqlite->query($sql, $this->table);
+
+        $this->sqlite->query($sql, [$this->table]);
 
         $sql = "SELECT id
                   FROM schemas
                  WHERE tbl = ?";
         $sql = "DELETE FROM schema_cols WHERE sid IN ($sql)";
-        $this->sqlite->query($sql, $this->table);
+
+        $this->sqlite->query($sql, [$this->table]);
 
         $sql = "DELETE FROM schemas WHERE tbl = ?";
-        $this->sqlite->query($sql, $this->table);
+        $this->sqlite->query($sql, [$this->table]);
 
         $this->sqlite->query('COMMIT TRANSACTION');
         $this->sqlite->query('VACUUM');
 
         // a deleted schema should not be used anymore, but let's make sure it's somewhat sane anyway
         $this->id = 0;
-        $this->columns = array();
+        $this->columns = [];
         $this->maxsort = 0;
         $this->ts = 0;
     }
@@ -242,9 +241,9 @@ class Schema
         if (!$this->id) throw new StructException('can not clear data of unsaved schema');
 
         $this->sqlite->query('BEGIN TRANSACTION');
-        $sql = 'DELETE FROM ?';
-        $this->sqlite->query($sql, 'data_' . $this->table);
-        $this->sqlite->query($sql, 'multi_' . $this->table);
+        $sql = 'DELETE FROM ';
+        $this->sqlite->query($sql . 'data_' . $this->table);
+        $this->sqlite->query($sql . 'multi_' . $this->table);
         $this->sqlite->query('COMMIT TRANSACTION');
         $this->sqlite->query('VACUUM');
     }
@@ -312,7 +311,7 @@ class Schema
      */
     public function isInternal()
     {
-        return (bool) $this->config['internal'];
+        return (bool)$this->config['internal'];
     }
 
     /**
@@ -326,9 +325,7 @@ class Schema
         if (!$withDisabled) {
             return array_filter(
                 $this->columns,
-                function (Column $col) {
-                    return $col->isEnabled();
-                }
+                static fn(Column $col) => $col->isEnabled()
             );
         }
 
@@ -346,7 +343,7 @@ class Schema
     public function findColumn($name)
     {
         foreach ($this->columns as $col) {
-            if ($col->isEnabled() &&  PhpString::strtolower($col->getLabel()) == PhpString::strtolower($name)) {
+            if ($col->isEnabled() && PhpString::strtolower($col->getLabel()) === PhpString::strtolower($name)) {
                 return $col;
             }
         }
@@ -374,25 +371,25 @@ class Schema
      */
     public function toJSON()
     {
-        $data = array(
+        $data = [
             'structversion' => $this->structversion,
             'schema' => $this->getTable(),
             'id' => $this->getId(),
             'user' => $this->getUser(),
             'config' => $this->getConfig(),
-            'columns' => array()
-        );
+            'columns' => []
+        ];
 
         foreach ($this->columns as $column) {
-            $data['columns'][] = array(
+            $data['columns'][] = [
                 'colref' => $column->getColref(),
                 'ismulti' => $column->isMulti(),
                 'isenabled' => $column->isEnabled(),
                 'sort' => $column->getSort(),
                 'label' => $column->getLabel(),
                 'class' => $column->getType()->getClass(),
-                'config' => $column->getType()->getConfig(),
-            );
+                'config' => $column->getType()->getConfig()
+            ];
         }
 
         return json_encode($data, JSON_PRETTY_PRINT);

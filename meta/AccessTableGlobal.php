@@ -24,11 +24,15 @@ class AccessTableGlobal extends AccessTable
         if (!$this->rid) return; // no data
 
         /** @noinspection SqlResolve */
-        $sql = 'DELETE FROM ? WHERE rid = ?';
-        $this->sqlite->query($sql, 'data_' . $this->schema->getTable(), $this->rid);
-        $this->sqlite->query($sql, 'multi_' . $this->schema->getTable(), $this->rid);
+        $sql = 'DELETE FROM data_' . $this->schema->getTable() . ' WHERE rid = ?';
+        $this->sqlite->query($sql, $this->rid);
+        $sql = 'DELETE FROM multi_' . $this->schema->getTable() . ' WHERE rid = ?';
+        $this->sqlite->query($sql, $this->rid);
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function getLastRevisionTimestamp()
     {
         return 0;
@@ -48,11 +52,12 @@ class AccessTableGlobal extends AccessTable
     protected function getSingleSql()
     {
         $cols = array_merge($this->getSingleNoninputCols(), $this->singleCols);
-        $cols = join(',', $cols);
+        $cols = implode(',', $cols);
+
         $vals = array_merge($this->getSingleNoninputValues(), $this->singleValues);
         $rid = $this->getRid() ?: "(SELECT (COALESCE(MAX(rid), 0 ) + 1) FROM $this->stable)";
 
-        return "REPLACE INTO $this->stable (rid, $cols) 
+        return "REPLACE INTO $this->stable (rid, $cols)
                       VALUES ($rid," . trim(str_repeat('?,', count($vals)), ',') . ');';
     }
 
@@ -70,9 +75,11 @@ class AccessTableGlobal extends AccessTable
     protected function validateTypeData($data)
     {
         // we do not store completely empty rows
-        $isempty = array_reduce($data, function ($isempty, $cell) {
-            return $isempty && ($cell === '' || $cell === [] || $cell === null);
-        }, true);
+        $isempty = array_reduce(
+            $data,
+            static fn($isempty, $cell) => $isempty && ($cell === '' || $cell === [] || $cell === null),
+            true
+        );
 
         return !$isempty;
     }
@@ -109,9 +116,7 @@ class AccessTableGlobal extends AccessTable
     {
         $ok = true;
         if (!$this->rid) {
-            $res = $this->sqlite->query("SELECT rid FROM $this->stable WHERE ROWID = last_insert_rowid()");
-            $this->rid = $this->sqlite->res2single($res);
-            $this->sqlite->res_close($res);
+            $this->rid = $this->sqlite->queryValue("SELECT rid FROM $this->stable WHERE ROWID = last_insert_rowid()");
             if (!$this->rid) {
                 $ok = false;
             }
@@ -135,9 +140,10 @@ class AccessTableGlobal extends AccessTable
      */
     protected function handleEmptyMulti($pid, $rid, $colref)
     {
+        $table = 'multi_' . $this->schema->getTable();
         $this->optQueries[] = [
-            "DELETE FROM ? WHERE pid = ? AND rid = ? AND colref = ?",
-            'multi_' . $this->schema->getTable(), $pid, $rid, $colref
+            "DELETE FROM $table WHERE pid = ? AND rid = ? AND colref = ?",
+            $pid, $rid, $colref
         ];
     }
 }

@@ -32,6 +32,7 @@ class SearchCloud extends SearchConfig
         // add conditional page clauses if pid has a value
         $subAnd = $QB->filters()->whereSubAnd();
         $subAnd->whereAnd("$datatable.pid = ''");
+
         $subOr = $subAnd->whereSubOr();
         $subOr->whereAnd("GETACCESSLEVEL($datatable.pid) > 0");
         $subOr->whereAnd("PAGEEXISTS($datatable.pid) = 1");
@@ -80,7 +81,7 @@ class SearchCloud extends SearchConfig
         $QB->addGroupByStatement('tag');
         $QB->addOrderBy('count DESC');
 
-        list($sql, $opts) = $QB->getSQL();
+        [$sql, $opts] = $QB->getSQL();
         return [$sql . $this->limit, $opts];
     }
 
@@ -103,14 +104,14 @@ class SearchCloud extends SearchConfig
      */
     public function execute()
     {
-        list($sql, $opts) = $this->getSQL();
+        [$sql, $opts] = $this->getSQL();
 
         /** @var \PDOStatement $res */
         $res = $this->sqlite->query($sql, $opts);
         if ($res === false) throw new StructException("SQL execution failed for\n\n$sql");
 
         $result = [];
-        $rows = $this->sqlite->res2arr($res);
+        $rows = $res->fetchAll(\PDO::FETCH_ASSOC);
 
         foreach ($rows as $row) {
             if (!empty($this->config['min']) && $this->config['min'] > $row['count']) {
@@ -121,7 +122,7 @@ class SearchCloud extends SearchConfig
             $result[] = $row;
         }
 
-        $this->sqlite->res_close($res);
+        $res->closeCursor();
         $this->count = count($result);
         return $result;
     }

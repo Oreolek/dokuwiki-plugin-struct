@@ -6,16 +6,17 @@ use dokuwiki\plugin\struct\meta\Column;
 use dokuwiki\plugin\struct\meta\QueryBuilder;
 use dokuwiki\plugin\struct\meta\QueryBuilderWhere;
 use dokuwiki\plugin\struct\meta\SearchConfigParameters;
+use dokuwiki\Utf8\PhpString;
 
 class Tag extends AbstractMultiBaseType
 {
-    protected $config = array(
+    protected $config = [
         'page' => '',
-        'autocomplete' => array(
+        'autocomplete' => [
             'mininput' => 2,
-            'maxresult' => 5,
-        ),
-    );
+            'maxresult' => 5
+        ]
+    ];
 
     /**
      * @param int|string $value
@@ -47,29 +48,27 @@ class Tag extends AbstractMultiBaseType
 
         // check minimum length
         $lookup = trim($INPUT->str('search'));
-        if (utf8_strlen($lookup) < $this->config['autocomplete']['mininput']) return array();
+        if (PhpString::strlen($lookup) < $this->config['autocomplete']['mininput']) return [];
 
         // results wanted?
         $max = $this->config['autocomplete']['maxresult'];
-        if ($max <= 0) return array();
+        if ($max <= 0) return [];
 
         $context = $this->getContext();
         $sql = $this->buildSQLFromContext($context);
-        $opt = array("%$lookup%");
+        $opt = ["%$lookup%"];
 
         /** @var \helper_plugin_struct_db $hlp */
         $hlp = plugin_load('helper', 'struct_db');
         $sqlite = $hlp->getDB();
-        $res = $sqlite->query($sql, $opt);
-        $rows = $sqlite->res2arr($res);
-        $sqlite->res_close($res);
+        $rows = $sqlite->queryAll($sql, $opt);
 
-        $result = array();
+        $result = [];
         foreach ($rows as $row) {
-            $result[] = array(
+            $result[] = [
                 'label' => $row['value'],
-                'value' => $row['value'],
-            );
+                'value' => $row['value']
+            ];
         }
 
         return $result;

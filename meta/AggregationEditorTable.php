@@ -11,10 +11,12 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class AggregationEditorTable extends AggregationTable
 {
-    /**
-     * @var bool skip full table when no results found
-     */
-    protected $simplenone = false;
+    /** @inheritdoc */
+    public function render($showNotFound = false)
+    {
+        parent::render(); // never show not found
+    }
+
 
     /**
      * Adds additional info to document and renderer in XHTML mode
@@ -23,10 +25,11 @@ class AggregationEditorTable extends AggregationTable
      *
      * @see finishScope()
      */
-    protected function startScope()
+    public function startScope()
     {
         // unique identifier for this aggregation
-        $this->renderer->info['struct_table_hash'] = md5(var_export($this->data, true));
+        $hash = md5(var_export($this->data, true));
+        $this->renderer->info['struct_table_hash'] = $hash;
 
         if ($this->mode != 'xhtml') return;
 
@@ -34,14 +37,15 @@ class AggregationEditorTable extends AggregationTable
 
         $config = $this->searchConfig->getConf();
         if (isset($config['filter'])) unset($config['filter']);
-        $config = hsc(json_encode($config));
+        $config = hsc(json_encode($config, JSON_THROW_ON_ERROR));
 
         // wrapping div
-        $this->renderer->doc .= "<div class=\"structaggregation structaggregationeditor\" 
+        $classes = $this->getScopeClasses();
+        $classes[] = 'structaggregationeditor';
+        $classes = implode(' ', $classes);
+        $this->renderer->doc .= "<div id=\"$hash\"
+                                      class=\"$classes\"
                                       data-schema=\"$table\" data-searchconf=\"$config\">";
-
-        // unique identifier for this aggregation
-        $this->renderer->info['struct_table_hash'] = md5(var_export($this->data, true));
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace dokuwiki\plugin\struct\meta;
 
+use dokuwiki\Extension\Event;
+
 /**
  * Class ConfigParser
  *
@@ -11,7 +13,25 @@ namespace dokuwiki\plugin\struct\meta;
  */
 class ConfigParser
 {
-    protected $config = array();
+    protected $config = [
+        'limit' => 0,
+        'dynfilters' => false,
+        'summarize' => false,
+        'rownumbers' => false,
+        'sepbyheaders' => false,
+        'target' => '',
+        'align' => [],
+        'headers' => [],
+        'cols' => [],
+        'widths' => [],
+        'filter' => [],
+        'schemas' => [],
+        'sort' => [],
+        'csv' => true,
+        'nesting' => 0,
+        'index' => 0,
+        'classes' => []
+    ];
 
     /**
      * Parser constructor.
@@ -24,25 +44,9 @@ class ConfigParser
     {
         /** @var \helper_plugin_struct_config $helper */
         $helper = plugin_load('helper', 'struct_config');
-        $this->config = array(
-            'limit' => 0,
-            'dynfilters' => false,
-            'summarize' => false,
-            'rownumbers' => false,
-            'sepbyheaders' => false,
-            'target' => '',
-            'align' => array(),
-            'headers' => array(),
-            'cols' => array(),
-            'widths' => array(),
-            'filter' => array(),
-            'schemas' => array(),
-            'sort' => array(),
-            'csv' => true,
-        );
         // parse info
         foreach ($lines as $line) {
-            list($key, $val) = array_pad($this->splitLine($line), 2, '');
+            [$key, $val] = $this->splitLine($line);
             if (!$key) continue;
 
             $logic = 'OR';
@@ -84,7 +88,7 @@ class ConfigParser
                 case 'order':
                 case 'sort':
                     $sorts = $this->parseValues($val);
-                    $sorts = array_map(array($helper, 'parseSort'), $sorts);
+                    $sorts = array_map([$helper, 'parseSort'], $sorts);
                     $this->config['sort'] = array_merge($this->config['sort'], $sorts);
                     break;
                 case 'where':
@@ -116,9 +120,20 @@ class ConfigParser
                 case 'page':
                     $this->config['target'] = cleanID($val);
                     break;
+                case 'nesting':
+                case 'nest':
+                    $this->config['nesting'] = (int) $val;
+                    break;
+                case 'index':
+                    $this->config['index'] = (int) $val;
+                    break;
+                case 'class':
+                case 'classes':
+                    $this->config['classes'] = $this->parseClasses($val);
+                    break;
                 default:
-                    $data = array('config' => &$this->config, 'key' => $key, 'val' => $val);
-                    $ev = new \Doku_Event('PLUGIN_STRUCT_CONFIGPARSER_UNKNOWNKEY', $data);
+                    $data = ['config' => &$this->config, 'key' => $key, 'val' => $val];
+                    $ev = new Event('PLUGIN_STRUCT_CONFIGPARSER_UNKNOWNKEY', $data);
                     if ($ev->advise_before()) {
                         throw new StructException("unknown option '%s'", hsc($key));
                     }
@@ -154,7 +169,7 @@ class ConfigParser
      * Splits the given line into key and value
      *
      * @param $line
-     * @return bool|array returns false for empty lines
+     * @return array returns ['',''] if the line is empty
      */
     protected function splitLine($line)
     {
@@ -162,10 +177,11 @@ class ConfigParser
         $line = preg_replace('/(?<![&\\\\])#.*$/', '', $line);
         $line = str_replace('\\#', '#', $line);
         $line = trim($line);
-        if (empty($line)) return false;
+        if (empty($line)) return ['', ''];
 
         $line = preg_split('/\s*:\s*/', $line, 2);
         $line[0] = strtolower($line[0]);
+        if (!isset($line[1])) $line[1] = '';
 
         return $line;
     }
@@ -178,15 +194,15 @@ class ConfigParser
      */
     protected function parseSchema($val)
     {
-        $schemas = array();
+        $schemas = [];
         $parts = explode(',', $val);
         foreach ($parts as $part) {
-            @list($table, $alias) = array_pad(explode(' ', trim($part)), 2, '');
+            [$table, $alias] = sexplode(' ', trim($part), 2, '');
             $table = trim($table);
             $alias = trim($alias);
             if (!$table) continue;
 
-            $schemas[] = array($table, $alias,);
+            $schemas[] = [$table, $alias];
         }
         return $schemas;
     }
@@ -200,7 +216,7 @@ class ConfigParser
     protected function parseAlignments($val)
     {
         $cols = explode(',', $val);
-        $data = array();
+        $data = [];
         foreach ($cols as $col) {
             $col = trim(strtolower($col));
             if ($col[0] == 'c') {
@@ -228,6 +244,7 @@ class ConfigParser
     {
         $vals = explode(',', $val);
         $vals = array_map('trim', $vals);
+
         $len = count($vals);
         for ($i = 0; $i < $len; $i++) {
             $val = trim(strtolower($vals[$i]));
@@ -256,24 +273,24 @@ class ConfigParser
      */
     protected function parseValues($line)
     {
-        $values = array();
+        $values = [];
         $inQuote = false;
         $escapedQuote = false;
         $value = '';
         $len = strlen($line);
         for ($i = 0; $i < $len; $i++) {
-            if ($line[$i] == '"') {
+            if ($line[$i] === '"') {
                 if ($inQuote) {
                     if ($escapedQuote) {
                         $value .= '"';
                         $escapedQuote = false;
                         continue;
                     }
-                    if ($line[$i + 1] == '"') {
+                    if (isset($line[$i + 1]) && $line[$i + 1] === '"') {
                         $escapedQuote = true;
                         continue;
                     }
-                    array_push($values, $value);
+                    $values[] = $value;
                     $inQuote = false;
                     $value = '';
                     continue;
@@ -282,7 +299,7 @@ class ConfigParser
                     $value = ''; //don't store stuff before the opening quote
                     continue;
                 }
-            } elseif ($line[$i] == ',') {
+            } elseif ($line[$i] === ',') {
                 if ($inQuote) {
                     $value .= ',';
                     continue;
@@ -290,7 +307,7 @@ class ConfigParser
                     if (strlen($value) < 1) {
                         continue;
                     }
-                    array_push($values, trim($value));
+                    $values[] = trim($value);
                     $value = '';
                     continue;
                 }
@@ -298,8 +315,25 @@ class ConfigParser
             $value .= $line[$i];
         }
         if (strlen($value) > 0) {
-            array_push($values, trim($value));
+            $values[] = trim($value);
         }
         return $values;
+    }
+
+    /**
+     * Ensure custom classes are valid and don't clash
+     *
+     * @param string $line
+     * @return string[]
+     */
+    protected function parseClasses($line)
+    {
+        $classes = $this->parseValues($line);
+        $classes = array_map(function ($class) {
+            $class = str_replace(' ', '_', $class);
+            $class = preg_replace('/[^a-zA-Z0-9_]/', '', $class);
+            return 'struct-custom-' . $class;
+        }, $classes);
+        return $classes;
     }
 }

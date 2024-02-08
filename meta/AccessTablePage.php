@@ -28,13 +28,13 @@ class AccessTablePage extends AccessTable
      */
     public function clearData()
     {
-        $data = array();
+        $data = [];
 
         foreach ($this->schema->getColumns() as $col) {
             if ($col->isMulti()) {
-                $data[$col->getLabel()] = array();
+                $data[$col->getLabel()] = [];
             } else {
-                $data[$col->getLabel()] = null;
+                $data[$col->getLabel()] = '';
             }
         }
 
@@ -56,9 +56,7 @@ class AccessTablePage extends AccessTable
 
         /** @noinspection SqlResolve */
         $sql = "SELECT rev FROM $table $where ORDER BY rev DESC LIMIT 1";
-        $res = $this->sqlite->query($sql, $opts);
-        $ret = $this->sqlite->res2single($res);
-        $this->sqlite->res_close($res);
+        $ret = $this->sqlite->queryValue($sql, $opts);
         // make sure we don't cast empty result to 0 (serial data has rev = 0)
         if ($ret !== false) $ret = (int)$ret;
         return $ret;

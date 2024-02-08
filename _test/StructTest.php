@@ -3,8 +3,11 @@
 namespace dokuwiki\plugin\struct\test;
 
 use dokuwiki\plugin\struct\meta\AccessTable;
+use dokuwiki\plugin\struct\meta\Column;
 use dokuwiki\plugin\struct\meta\SchemaImporter;
+use dokuwiki\plugin\struct\meta\Value;
 use dokuwiki\plugin\struct\test\mock\Assignments;
+use dokuwiki\plugin\struct\types\Text;
 
 /**
  * Base class for all struct tests
@@ -39,7 +42,6 @@ abstract class StructTest extends \DokuWikiTest
      * @param string $schema
      * @param string $json base name of the JSON file optional, defaults to $schema
      * @param int $rev allows to create schemas back in time
-     * @param bool $lookup create as a lookup schema
      */
     protected function loadSchemaJSON($schema, $json = '', $rev = 0)
     {
@@ -54,35 +56,6 @@ abstract class StructTest extends \DokuWikiTest
         if (!$importer->build($rev)) {
             throw new \RuntimeException("build of $schema from $file failed");
         }
-    }
-
-    /**
-     * This waits until a new second has passed
-     *
-     * The very first call will return immeadiately, proceeding calls will return
-     * only after at least 1 second after the last call has passed.
-     *
-     * When passing $init=true it will not return immeadiately but use the current
-     * second as initialization. It might still return faster than a second.
-     *
-     * @param bool $init wait from now on, not from last time
-     * @return int new timestamp
-     */
-    protected function waitForTick($init = false)
-    {
-        // this will be in DokuWiki soon
-        if (is_callable('parent::waitForTick')) {
-            return parent::waitForTick($init);
-        }
-
-        static $last = 0;
-        if ($init) $last = time();
-
-        while ($last === $now = time()) {
-            usleep(100000); //recheck in a 10th of a second
-        }
-        $last = $now;
-        return $now;
     }
 
     /**
@@ -138,6 +111,39 @@ abstract class StructTest extends \DokuWikiTest
      */
     protected function cleanWS($string)
     {
-        return preg_replace('/\s+/s', '', $string);
+        return preg_replace(['/\s+/s', '/\:val(\d{1,3})/'], ['', '?'], $string);
+    }
+
+    /**
+     * Create an Aggregation result set from a given flat array
+     *
+     * The result will contain simple Text columns
+     *
+     * @param array $rows
+     * @return array
+     */
+    protected function createAggregationResult($rows)
+    {
+        $result = [];
+
+        foreach ($rows as $row) {
+            $resultRow = [];
+            foreach ($row as $num => $cell) {
+                $colRef = $num + 1;
+                $resultRow[] = new Value(
+                    new Column(
+                        10,
+                        new Text(['label' => ['en' => "Label $colRef"]], "field$colRef", is_array($cell)),
+                        $colRef,
+                        true,
+                        'test'
+                    ),
+                    $cell
+                );
+            }
+            $result[] = $resultRow;
+        }
+
+        return $result;
     }
 }

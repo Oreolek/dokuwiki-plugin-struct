@@ -18,13 +18,13 @@ class Value
     protected $value;
 
     /** @var  array|int|string */
-    protected $rawvalue = null;
+    protected $rawvalue;
 
     /** @var array|int|string */
-    protected $display = null;
+    protected $display;
 
     /** @var array|int|string */
-    protected $compare = null;
+    protected $compare;
 
     /** @var bool is this a raw value only? */
     protected $rawonly = false;
@@ -110,14 +110,14 @@ class Value
 
         // treat all givens the same
         if (!is_array($value)) {
-            $value = array($value);
+            $value = [$value];
         }
 
         // reset/init
-        $this->value = array();
-        $this->rawvalue = array();
-        $this->display = array();
-        $this->compare = array();
+        $this->value = [];
+        $this->rawvalue = [];
+        $this->display = [];
+        $this->compare = [];
 
         // remove all blanks
         foreach ($value as $val) {
@@ -126,7 +126,7 @@ class Value
             } else {
                 $raw = $this->column->getType()->rawValue($val);
             }
-            if ('' === (string)trim($raw)) continue;
+            if ('' === trim((string)$raw)) continue;
             $this->value[] = $val;
             $this->rawvalue[] = $raw;
             if ($israw) {
@@ -154,7 +154,7 @@ class Value
      */
     public function isEmpty()
     {
-        return ($this->rawvalue === '' || $this->rawvalue === array());
+        return ($this->rawvalue === '' || $this->rawvalue === []);
     }
 
     /**
@@ -174,10 +174,8 @@ class Value
             if (count($this->value)) {
                 return $this->column->getType()->renderMultiValue($this->value, $R, $mode);
             }
-        } else {
-            if ($this->value !== '') {
-                return $this->column->getType()->renderValue($this->value, $R, $mode);
-            }
+        } elseif ($this->value !== '') {
+            return $this->column->getType()->renderValue($this->value, $R, $mode);
         }
         return true;
     }
@@ -190,11 +188,12 @@ class Value
      * @param string $page
      * @param string $filterQuery
      * @param int $weight
+     * @param int $showCount
      */
-    public function renderAsTagCloudLink(\Doku_Renderer $R, $mode, $page, $filterQuery, $weight)
+    public function renderAsTagCloudLink(\Doku_Renderer $R, $mode, $page, $filterQuery, $weight, $showCount)
     {
         $value = is_array($this->value) ? $this->value[0] : $this->value;
-        $this->column->getType()->renderTagCloudLink($value, $R, $mode, $page, $filterQuery, $weight);
+        $this->column->getType()->renderTagCloudLink($value, $R, $mode, $page, $filterQuery, $weight, $showCount);
     }
 
     /**
@@ -221,5 +220,16 @@ class Value
     public function filter($input)
     {
         return '' !== ((string)$input);
+    }
+
+    /**
+     * Get a string representation of this value
+     *
+     * @return string
+     */
+    public function __toString()
+    {
+        return '[' . $this->getColumn()->getFullQualifiedLabel() . '] ' .
+            implode(',', (array)$this->getRawValue());
     }
 }

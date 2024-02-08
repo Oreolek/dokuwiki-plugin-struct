@@ -296,7 +296,8 @@ abstract class AccessTable
     protected function getSingleSql()
     {
         $cols = array_merge($this->getSingleNoninputCols(), $this->singleCols);
-        $cols = join(',', $cols);
+        $cols = implode(',', $cols);
+
         $vals = array_merge($this->getSingleNoninputValues(), $this->singleValues);
 
         return "INSERT INTO $this->stable ($cols) VALUES (" . trim(str_repeat('?,', count($vals)), ',') . ');';
@@ -332,7 +333,8 @@ abstract class AccessTable
     {
         $ok = true;
         foreach ($this->optQueries as $query) {
-            $ok = $ok && $this->sqlite->query(array_shift($query), $query);
+            $sql = array_shift($query);
+            $ok = $ok && $this->sqlite->query($sql, $query);
         }
         return $ok;
     }
@@ -425,7 +427,7 @@ abstract class AccessTable
         foreach ($data as $value) {
             $key = $value->getColumn()->getFullQualifiedLabel();
             $value = $value->getDisplayValue();
-            if (is_array($value)) $value = join(', ', $value);
+            if (is_array($value)) $value = implode(', ', $value);
             $result .= sprintf("% -20s : %s\n", $key, $value);
         }
         return $result;
@@ -438,12 +440,9 @@ abstract class AccessTable
     protected function getDataFromDB()
     {
         $idColumn = self::isTypePage($this->pid, $this->ts) ? 'pid' : 'rid';
-        list($sql, $opt) = $this->buildGetDataSQL($idColumn);
+        [$sql, $opt] = $this->buildGetDataSQL($idColumn);
 
-        $res = $this->sqlite->query($sql, $opt);
-        $data = $this->sqlite->res2arr($res);
-        $this->sqlite->res_close($res);
-        return $data;
+        return $this->sqlite->queryAll($sql, $opt);
     }
 
     /**
@@ -455,14 +454,14 @@ abstract class AccessTable
      */
     protected function consolidateData($DBdata, $asarray = false)
     {
-        $data = array();
+        $data = [];
 
         $sep = Search::CONCAT_SEPARATOR;
 
         foreach ($this->schema->getColumns(false) as $col) {
             // if no data saved yet, return empty strings
             if ($DBdata) {
-                $val = $DBdata[0]['out' . $col->getColref()];
+                $val = (string) $DBdata[0]['out' . $col->getColref()];
             } else {
                 $val = '';
             }
@@ -520,7 +519,7 @@ abstract class AccessTable
                 );
                 $col->getType()->select($QB, $tn, 'value', $outname);
                 $sel = $QB->getSelectStatement($outname);
-                $QB->addSelectStatement("GROUP_CONCAT($sel, '$sep')", $outname);
+                $QB->addSelectStatement("GROUP_CONCAT_DISTINCT($sel, '$sep')", $outname);
             } else {
                 $col->getType()->select($QB, 'DATA', $colname, $outname);
                 $QB->addGroupByStatement($outname);
@@ -635,13 +634,11 @@ abstract class AccessTable
      */
     protected function clearMulti()
     {
-        $colrefs = array_unique(array_map(function ($val) {
-            return $val[0];
-        }, $this->multiValues));
+        $colrefs = array_unique(array_map(static fn($val) => $val[0], $this->multiValues));
         return $this->sqlite->query(
             "DELETE FROM $this->mtable WHERE pid = ? AND rid = $this->rid AND rev = 0 AND colref IN (" .
             implode(',', $colrefs) . ")",
-            $this->pid
+            [$this->pid]
         );
     }
 }
